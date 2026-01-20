@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wordle</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+:root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --tile: #1f2430;
+    --border: #2a3040;
+    --text: #e6e6eb;
+    --muted: #9aa0b3;
+    --green: #3aa394;
+    --yellow: #d3ad69;
+    --gray: #3a3f50;
+}
+
+* {
+    box-sizing: border-box;
+    font-family: system-ui, sans-serif;
+}
+
+body {
+    margin: 0;
+    background: radial-gradient(1200px 600px at top, #151927, var(--bg));
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+.app {
+    width: 100%;
+    max-width: 520px;
+    padding: 24px 16px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+header {
+    text-align: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 28px;
+    letter-spacing: 4px;
+}
+
+.stats {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.board {
+    display: grid;
+    grid-template-rows: repeat(6, 1fr);
+    gap: 6px;
+}
+
+.row {
+    display: grid;
+    gap: 6px;
+}
+
+.tile {
+    aspect-ratio: 1 / 1;
+    background: var(--tile);
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(14px, 3vw, 22px);
+    font-weight: 700;
+    text-transform: uppercase;
+    border-radius: 8px;
+}
+
+.tile.correct { background: var(--green); border-color: var(--green); color: #081815; }
+.tile.present { background: var(--yellow); border-color: var(--yellow); color: #2a1f0a; }
+.tile.absent { background: var(--gray); border-color: var(--gray); }
+
+.keyboard {
+    display: grid;
+    gap: 6px;
+}
+
+.key-row {
+    display: flex;
+    gap: 6px;
+}
+
+.key {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 0;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.key.wide { flex: 1.5; }
+
+.message {
+    text-align: center;
+    font-weight: 700;
+    min-height: 24px;
+}
+
+button.next {
+    background: var(--green);
+    border: none;
+    color: #071916;
+    padding: 12px;
+    font-weight: 700;
+    border-radius: 8px;
+    cursor: pointer;
+    display: none;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+    <header>
+        <h1>WORDLE</h1>
+    </header>
+
+    <div class="stats">
+        <div>Points: <span id="points">0</span></div>
+        <div>Word <span id="wordIndex">1</span>/<span id="wordTotal">0</span></div>
+    </div>
+
+    <div class="board" id="board"></div>
+    <div class="message" id="message"></div>
+    <button class="next" id="nextBtn">Next word →</button>
+    <div class="keyboard" id="keyboard"></div>
+</div>
+
+<script>
+const WORDS = [
+    "ecologie",
+    "individu",
+    "schakel",
+    "levensgemeenschap",
+    "reducenten",
+    "plasticsoep",
+    "territorium",
+    "symbiose",
+    "biodiversiteit",
+    "bosbouw"
+];
+
+let remainingWords = [...WORDS];
+let answer = "";
+let WORD_LEN = 0;
+
+const MAX_ROWS = 6;
+let board = [];
+let row = 0;
+let col = 0;
+let gameOver = false;
+let points = 0;
+
+const boardEl = document.getElementById("board");
+const keyboardEl = document.getElementById("keyboard");
+const messageEl = document.getElementById("message");
+const nextBtn = document.getElementById("nextBtn");
+const pointsEl = document.getElementById("points");
+const wordIndexEl = document.getElementById("wordIndex");
+const wordTotalEl = document.getElementById("wordTotal");
+
+wordTotalEl.textContent = WORDS.length;
+
+function nextWord() {
+    answer = remainingWords.splice(Math.floor(Math.random() * remainingWords.length), 1)[0];
+    WORD_LEN = answer.length;
+
+    board = Array.from({ length: MAX_ROWS }, () => Array(WORD_LEN).fill(""));
+    row = col = 0;
+    gameOver = false;
+
+    messageEl.textContent = "";
+    nextBtn.style.display = "none";
+
+    wordIndexEl.textContent = WORDS.length - remainingWords.length;
+    buildBoard();
+    updateBoard();
+}
+
+function buildBoard() {
+    boardEl.innerHTML = "";
+    for (let r = 0; r < MAX_ROWS; r++) {
+        const rowEl = document.createElement("div");
+        rowEl.className = "row";
+        rowEl.style.gridTemplateColumns = `repeat(${WORD_LEN}, 1fr)`;
+        for (let c = 0; c < WORD_LEN; c++) {
+            rowEl.appendChild(document.createElement("div")).className = "tile";
+        }
+        boardEl.appendChild(rowEl);
+    }
+}
+
+function buildKeyboard() {
+    const rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+    keyboardEl.innerHTML = "";
+    rows.forEach((letters, i) => {
+        const rowEl = document.createElement("div");
+        rowEl.className = "key-row";
+        if (i === 2) rowEl.appendChild(makeKey("Enter", true));
+        for (const l of letters) rowEl.appendChild(makeKey(l));
+        if (i === 2) rowEl.appendChild(makeKey("⌫", true));
+        keyboardEl.appendChild(rowEl);
+    });
+}
+
+function makeKey(k, wide = false) {
+    const b = document.createElement("button");
+    b.className = "key" + (wide ? " wide" : "");
+    b.textContent = k;
+    b.onclick = () => handleKey(k);
+    return b;
+}
+
+function updateBoard() {
+    board.forEach((r, i) =>
+        r.forEach((c, j) =>
+            boardEl.children[i].children[j].textContent = c
+        )
+    );
+}
+
+function handleKey(k) {
+    if (gameOver) return;
+    if (k === "Enter") submit();
+    else if (k === "⌫" || k === "Backspace") {
+        if (col > 0) board[row][--col] = "";
+    } else if (/^[a-z]$/i.test(k) && col < WORD_LEN) {
+        board[row][col++] = k.toLowerCase();
+    }
+    updateBoard();
+}
+
+function submit() {
+    if (col < WORD_LEN) return;
+
+    const guess = board[row].join("");
+    const answerArr = answer.split("");
+    const result = Array(WORD_LEN).fill("absent");
+
+    for (let i = 0; i < WORD_LEN; i++)
+        if (guess[i] === answerArr[i]) {
+            result[i] = "correct";
+            answerArr[i] = null;
+        }
+
+    for (let i = 0; i < WORD_LEN; i++)
+        if (result[i] !== "correct") {
+            const idx = answerArr.indexOf(guess[i]);
+            if (idx !== -1) {
+                result[i] = "present";
+                answerArr[idx] = null;
+            }
+        }
+
+    result.forEach((r, i) =>
+        boardEl.children[row].children[i].classList.add(r)
+    );
+
+    if (guess === answer) {
+        points += 50;
+        pointsEl.textContent = points;
+        messageEl.textContent = "Correct! +50 points 🎉";
+        endRound();
+        return;
+    }
+
+    if (++row === MAX_ROWS) {
+        messageEl.textContent = `Word was "${answer.toUpperCase()}"`;
+        endRound();
+    }
+    col = 0;
+}
+
+function endRound() {
+    gameOver = true;
+    nextBtn.style.display = remainingWords.length ? "block" : "none";
+    if (!remainingWords.length)
+        messageEl.textContent += " — All words completed!";
+}
+
+document.addEventListener("keydown", e => handleKey(e.key));
+nextBtn.onclick = nextWord;
+
+buildKeyboard();
+nextWord();
+</script>
+</body>
+</html>
