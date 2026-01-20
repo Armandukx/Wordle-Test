@@ -293,7 +293,7 @@ function endRound() {
     gameOver = true;
     nextBtn.style.display = remainingWords.length ? "block" : "none";
     if (!remainingWords.length)
-        messageEl.textContent += " — All words completed!";
+        messageEl.textContent += " - All words completed!";
 }
 
 document.addEventListener("keydown", e => handleKey(e.key));
